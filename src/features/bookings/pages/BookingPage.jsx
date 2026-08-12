@@ -63,11 +63,10 @@ const BookingPage = () => {
         specialRequests: specialReq,
       };
 
-      const action = await dispatch(createBooking(payload)).unwrap();
+      await dispatch(createBooking(payload)).unwrap();      
       toast.success('Booking initialized successfully!');
-      
-      // Navigate to Payment step with bookingId
-      navigate(`/book/${venueId}/payment?bookingId=${action.booking._id}`);
+      navigate(`/venues`);
+      toast.success('Booking initialized successfully!');
     } catch (err) {
       toast.error(err.message || 'Failed to initialize booking. Please try again.');
     } finally {

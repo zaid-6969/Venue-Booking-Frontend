@@ -166,7 +166,7 @@ const InvoiceModal = ({ booking, invoiceData, onClose, isOwner = false }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <ShieldCheck size={14} style={{ color: '#16a34a' }} /> Computer Generated Tax Invoice. No Signature Required.
           </div>
-          <div>VenueHub Platform Services © 2026</div>
+          <div>EventFlow Platform Services © 2026</div>
         </div>
 
       </div>

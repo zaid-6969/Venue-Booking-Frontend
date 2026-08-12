@@ -159,7 +159,7 @@ const Header = () => {
                 flexShrink: 0,
               }}
             >
-              V
+              {APP_NAME.charAt(0)}
             </div>
             <span
               style={{

@@ -3,8 +3,8 @@
  * Single source of truth for all constant values
  */
 
-export const APP_NAME = 'VenueHub';
-export const APP_TAGLINE = 'Find Your Perfect Event Venue';
+export const APP_NAME = 'EventFlow';
+export const APP_TAGLINE = 'Discover & Book Extraordinary Event Spaces';
 export const APP_VERSION = '1.0.0';
 
 // API

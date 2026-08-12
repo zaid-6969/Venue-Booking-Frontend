@@ -43,7 +43,7 @@ const AdminSettingsPage = () => {
               required
             />
             <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: 4, display: 'block' }}>
-              Percentage fee retained by VenueHub on every successful venue booking.
+              Percentage fee retained by EventFlow on every successful venue booking.
             </span>
           </div>
 

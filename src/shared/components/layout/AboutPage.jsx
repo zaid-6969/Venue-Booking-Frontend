@@ -12,12 +12,12 @@ const AboutPage = () => {
     <div className="container" style={{ paddingTop: 'var(--space-12)', paddingBottom: 'var(--space-20)' }}>
       {/* Hero Section */}
       <div style={{ textAlign: 'center', maxWidth: 760, margin: '0 auto var(--space-16)' }}>
-        <span className="badge badge-primary" style={{ marginBottom: 'var(--space-3)' }}>About VenueHub</span>
+        <span className="badge badge-primary" style={{ marginBottom: 'var(--space-3)' }}>About EventFlow</span>
         <h1 style={{ fontSize: 'var(--text-4xl)', fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display)', lineHeight: 1.2 }}>
           Transforming Event Space Discovery Across India
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-lg)', marginTop: 'var(--space-4)' }}>
-          VenueHub is India's leading marketplace for banquet halls, wedding lawns, resorts, and corporate convention spaces. We connect event organizers directly with verified property hosts.
+          EventFlow is India's leading marketplace for banquet halls, wedding lawns, resorts, and corporate convention spaces. We connect event organizers directly with verified property hosts.
         </p>
       </div>
 
@@ -48,7 +48,7 @@ const AboutPage = () => {
           </div>
           <h3 style={{ fontSize: 'var(--text-xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>100% Verified Properties</h3>
           <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-sm)' }}>
-            Every venue listed on VenueHub undergoes rigorous physical audit and verification checks to ensure image accuracy and pricing transparency.
+            Every venue listed on EventFlow undergoes rigorous physical audit and verification checks to ensure image accuracy and pricing transparency.
           </p>
         </div>
 

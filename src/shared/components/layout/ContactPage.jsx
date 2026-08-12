@@ -38,7 +38,7 @@ const ContactPage = () => {
               </div>
               <div>
                 <h4 style={{ fontSize: 'var(--text-sm)', fontWeight: 700 }}>Email Support</h4>
-                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 2 }}>support@venuehub.in</p>
+                <p style={{ fontSize: 'var(--text-xs)', color: 'var(--text-tertiary)', marginTop: 2 }}>support@eventflow.in</p>
               </div>
             </div>
           </div>

@@ -15,12 +15,12 @@ const TermsPage = () => {
       <div className="card" style={{ padding: 'var(--space-8)', background: 'var(--surface-1)', display: 'flex', flexDirection: 'column', gap: 'var(--space-6)', lineHeight: 1.7, color: 'var(--text-secondary)' }}>
         <section>
           <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>1. Platform Agreement</h3>
-          <p>By accessing VenueHub, you agree to comply with our platform terms, booking rules, and user conduct standards.</p>
+          <p>By accessing EventFlow, you agree to comply with our platform terms, booking rules, and user conduct standards.</p>
         </section>
 
         <section>
           <h3 style={{ fontSize: 'var(--text-lg)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>2. Booking & Payments</h3>
-          <p>All bookings made through VenueHub are subject to venue host availability and confirmation. Payment amounts include applicable taxes and platform fees.</p>
+          <p>All bookings made through EventFlow are subject to venue host availability and confirmation. Payment amounts include applicable taxes and platform fees.</p>
         </section>
 
         <section>

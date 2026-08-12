@@ -92,11 +92,11 @@ const DEMO_FEATURED = [
 
 const FAQS = [
   {
-    q: 'How do I book a venue through VenueHub?',
+    q: 'How do I book a venue through EventFlow?',
     a: 'Simply search for your preferred city or venue type, select your event date and guest count, choose an available package, and complete the booking form with instant confirmation.'
   },
   {
-    q: 'Are the prices listed on VenueHub negotiable?',
+    q: 'Are the prices listed on EventFlow negotiable?',
     a: 'Our listed prices are transparent and verified directly by venue owners. Many venues offer special package discounts for weekday events or seasonal bookings.'
   },
   {
@@ -127,7 +127,7 @@ const REVIEWS = [
   {
     name: 'Rohan Deshmukh',
     city: 'Pune',
-    comment: 'As a venue owner, VenueHub has boosted our booking inquiries by over 300%. The admin dashboard is super clean and intuitive.',
+    comment: 'As a venue owner, EventFlow has boosted our booking inquiries by over 300%. The admin dashboard is super clean and intuitive.',
     rating: 5,
     role: 'Venue Owner'
   }
@@ -405,7 +405,7 @@ const HomePage = () => {
       <section style={{ padding: 'var(--space-20) 0' }}>
         <div className="container">
           <div style={{ textAlign: 'center', maxWidth: 640, margin: '0 auto var(--space-16) auto' }}>
-            <div style={{ color: 'var(--brand-default)', fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 'var(--space-1)' }}>Why VenueHub</div>
+            <div style={{ color: 'var(--brand-default)', fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 'var(--space-1)' }}>Why EventFlow</div>
             <h2 style={{ fontSize: 'var(--text-3xl)', fontWeight: 700 }}>Built for Seamless Event Planning</h2>
           </div>
 
@@ -420,7 +420,7 @@ const HomePage = () => {
               return (
                 <div key={idx} style={{ background: 'var(--surface-1)', border: '1px solid var(--border-subtle)', padding: 'var(--space-8)', borderRadius: 'var(--radius-2xl)', textAlign: 'left' }}>
                   <div style={{ width: 50, height: 50, borderRadius: 'var(--radius-xl)', background: 'var(--brand-subtle)', color: 'var(--brand-default)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 'var(--space-5)' }}>
-                    <IconComp size={24} />
+                     <IconComp size={24} />
                   </div>
                   <h3 style={{ fontSize: 'var(--text-xl)', fontWeight: 700, marginBottom: 'var(--space-2)' }}>{item.title}</h3>
                   <p style={{ fontSize: 'var(--text-sm)', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{item.desc}</p>
@@ -472,7 +472,7 @@ const HomePage = () => {
         <div className="container" style={{ maxWidth: 800 }}>
           <div style={{ textAlign: 'center', marginBottom: 'var(--space-12)' }}>
             <h2 style={{ fontSize: 'var(--text-3xl)', fontWeight: 700 }}>Frequently Asked Questions</h2>
-            <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-2)' }}>Everything you need to know about booking with VenueHub</p>
+            <p style={{ color: 'var(--text-secondary)', marginTop: 'var(--space-2)' }}>Everything you need to know about booking with EventFlow</p>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>

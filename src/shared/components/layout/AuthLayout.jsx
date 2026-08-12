@@ -80,7 +80,7 @@ const AuthLayout = () => {
               fontFamily: 'var(--font-display)',
               boxShadow: '0 6px 16px rgba(99, 68, 245, 0.4)',
             }}>
-              V
+              {APP_NAME.charAt(0)}
             </div>
             <span style={{ color: '#ffffff', fontWeight: 800, fontSize: 20, letterSpacing: '-0.02em', fontFamily: 'var(--font-display)' }}>
               {APP_NAME}

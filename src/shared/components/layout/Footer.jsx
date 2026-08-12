@@ -61,7 +61,7 @@ const Footer = () => {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: '#fff', fontWeight: 800, fontSize: 'var(--text-lg)',
                 fontFamily: 'var(--font-display)',
-              }}>V</div>
+              }}>{APP_NAME.charAt(0)}</div>
               <span style={{ color: '#fff', fontWeight: 800, fontSize: 'var(--text-xl)', fontFamily: 'var(--font-display)' }}>
                 {APP_NAME}
               </span>
@@ -73,7 +73,7 @@ const Footer = () => {
             {/* Contact */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-3)' }}>
               {[
-                { icon: Mail,    text: 'support@venuehub.in' },
+                { icon: Mail,    text: 'support@eventflow.in' },
                 { icon: Phone,   text: '+91 98765 43210' },
                 { icon: MapPin,  text: 'Mumbai, Maharashtra, India' },
               ].map(({ icon: Icon, text }) => (

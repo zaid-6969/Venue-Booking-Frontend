@@ -1,19 +1,7 @@
-/**
- * OwnerDashboard Component — Ultra-Premium Minimalist Enterprise UI
- *
- * Features:
- * - Pixel-Perfect Top Welcome Banner with full-height 3D Palace illustration (/castle.png)
- * - 5 Primary KPI Stat Cards with solid colored icon badges, accurate trend badges (hidden when 0), and edge-to-edge mini SVG wave sparklines
- * - Real Data Calculations (Revenue, Net Profit, Bookings, Occupancy, Real Listed Venue Count)
- * - Clean Occupied Minimalist Empty States when zero data exists
- * - 3-Column Middle Section (Revenue Chart, Interactive Calendar, Today's Schedule)
- * - 3-Column Lower Section (Pending Requests Table, Real Venue Performance, Guest Reviews)
- * - 7 Quick Action Trigger Tiles
- */
-
-import { useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDispatch, useSelector } from 'react-redux'
+
 import {
   Building2,
   CalendarCheck,
@@ -23,116 +11,587 @@ import {
   CheckCircle2,
   XCircle,
   Plus,
-  ChevronRight,
-  AlertCircle,
-  ArrowUpRight,
-  Calendar,
-  TrendingUp,
-  Bell,
-  Award,
-  Users,
-  Shield,
-  Sparkles,
   Eye,
   Heart,
   Package,
-  Image,
+  Image as ImageIcon,
   FileText,
   Tag,
   BarChart3,
   PlusCircle,
   PieChart,
   Briefcase,
+  Calendar,
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
 } from 'lucide-react'
 
 import { fetchMyVenues } from '@features/venues/redux/venuesThunks'
+
 import { selectMyVenues } from '@features/venues/redux/venuesSlice'
+
 import {
   fetchOwnerBookings,
   confirmBooking,
   rejectBooking,
   selectOwnerBookings,
 } from '@features/bookings/redux/bookingsSlice'
+
 import { selectCurrentUser } from '@features/auth/redux/authSlice'
+
 import toast from 'react-hot-toast'
 
 const OwnerDashboard = () => {
   const dispatch = useDispatch()
+
   const user = useSelector(selectCurrentUser)
+
   const rawVenues = useSelector(selectMyVenues)
   const rawBookings = useSelector(selectOwnerBookings)
 
   const myVenues = Array.isArray(rawVenues) ? rawVenues : []
+
   const ownerBookings = Array.isArray(rawBookings) ? rawBookings : []
 
+  /* ============================================================
+     STATE
+  ============================================================ */
+
+  const [refreshing, setRefreshing] = useState(false)
+
+  const [processingBookingId, setProcessingBookingId] = useState(null)
+
+  const [calendarDate, setCalendarDate] = useState(new Date())
+
+  /* ============================================================
+     LOAD OWNER DATA
+  ============================================================ */
+
+  const loadDashboard = useCallback(
+    async (showRefresh = false) => {
+      try {
+        if (showRefresh) {
+          setRefreshing(true)
+        }
+
+        await Promise.all([
+          dispatch(fetchMyVenues()).unwrap(),
+          dispatch(fetchOwnerBookings()).unwrap(),
+        ])
+      } catch (error) {
+        console.error('OWNER DASHBOARD LOAD ERROR:', error)
+
+        toast.error(error?.message || 'Failed to load dashboard data')
+      } finally {
+        setRefreshing(false)
+      }
+    },
+    [dispatch]
+  )
+
   useEffect(() => {
-    dispatch(fetchMyVenues())
-    dispatch(fetchOwnerBookings())
-  }, [dispatch])
+    loadDashboard()
+  }, [loadDashboard])
 
-  // Strict filtering of logged-in owner's real data
-  const pendingBookings = ownerBookings.filter((b) => b.bookingStatus === 'pending')
-  const confirmedBookings = ownerBookings.filter(
-    (b) =>
-      b.bookingStatus === 'confirmed' ||
-      b.bookingStatus === 'completed' ||
-      b.bookingStatus === 'accepted'
-  )
-  const paidConfirmedBookings = ownerBookings.filter(
-    (b) => b.bookingStatus === 'confirmed' || b.bookingStatus === 'completed'
-  )
+  /* ============================================================
+     HELPERS
+  ============================================================ */
 
-  const grossRevenue = paidConfirmedBookings.reduce(
-    (sum, b) => sum + (b.pricing?.totalAmount || b.totalPrice || 0),
-    0
-  )
-  const netProfit = Math.round(grossRevenue * 0.9)
+  const getBookingStatus = (booking) => {
+    return String(booking?.bookingStatus || booking?.status || '')
+      .trim()
+      .toLowerCase()
+  }
 
-  const occupancyRate =
-    myVenues.length > 0
-      ? Math.min(100, Math.round((paidConfirmedBookings.length / (myVenues.length * 30)) * 100))
-      : 0
+  const getBookingAmount = (booking) => {
+    const values = [
+      booking?.pricing?.totalAmount,
+      booking?.totalPrice,
+      booking?.totalAmount,
+      booking?.grandTotal,
+      booking?.amount,
+      booking?.finalAmount,
+      booking?.bookingAmount,
+    ]
 
-  const upcomingEvents = confirmedBookings.filter((b) => {
-    if (!b.eventDate) return true
-    return new Date(b.eventDate) >= new Date(new Date().setHours(0, 0, 0, 0))
+    for (const value of values) {
+      const number = Number(value)
+
+      if (Number.isFinite(number) && number > 0) {
+        return number
+      }
+    }
+
+    return 0
+  }
+
+  const getCustomerName = (booking) => {
+    return (
+      booking?.customer?.name ||
+      booking?.customer?.fullName ||
+      booking?.user?.name ||
+      booking?.user?.fullName ||
+      booking?.customerName ||
+      booking?.name ||
+      'Customer'
+    )
+  }
+
+  const getVenueName = (booking) => {
+    return (
+      booking?.venue?.name ||
+      booking?.venueName ||
+      myVenues.find(
+        (venue) => String(venue?._id) === String(booking?.venueId || booking?.venue?._id)
+      )?.name ||
+      'Venue'
+    )
+  }
+
+  const formatDate = (date) => {
+    if (!date) return 'Date not specified'
+
+    const parsed = new Date(date)
+
+    if (Number.isNaN(parsed.getTime())) {
+      return 'Date not specified'
+    }
+
+    return parsed.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    })
+  }
+
+  const formatCurrency = (amount) => {
+    const value = Number(amount) || 0
+
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0,
+    }).format(value)
+  }
+
+  const isSameDay = (dateA, dateB) => {
+    if (!dateA || !dateB) return false
+
+    const a = new Date(dateA)
+    const b = new Date(dateB)
+
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    )
+  }
+
+  /* ============================================================
+     BOOKING STATUS
+  ============================================================ */
+
+  const pendingBookings = useMemo(() => {
+    return ownerBookings.filter((booking) => {
+      return getBookingStatus(booking) === 'pending'
+    })
+  }, [ownerBookings])
+
+  const confirmedBookings = useMemo(() => {
+    return ownerBookings.filter((booking) => {
+      const status = getBookingStatus(booking)
+
+      return status === 'confirmed' || status === 'accepted' || status === 'completed'
+    })
+  }, [ownerBookings])
+
+  const paidConfirmedBookings = useMemo(() => {
+    return ownerBookings.filter((booking) => {
+      const status = getBookingStatus(booking)
+
+      return status === 'confirmed' || status === 'completed'
+    })
+  }, [ownerBookings])
+
+  /* ============================================================
+     REVENUE
+  ============================================================ */
+
+  const grossRevenue = useMemo(() => {
+    return paidConfirmedBookings.reduce((total, booking) => {
+      return total + getBookingAmount(booking)
+    }, 0)
+  }, [paidConfirmedBookings])
+
+  /* ============================================================
+     UPCOMING EVENTS
+  ============================================================ */
+
+  const upcomingEvents = useMemo(() => {
+    const today = new Date()
+
+    today.setHours(0, 0, 0, 0)
+
+    return confirmedBookings
+      .filter((booking) => {
+        if (!booking?.eventDate) {
+          return false
+        }
+
+        const eventDate = new Date(booking.eventDate)
+
+        return !Number.isNaN(eventDate.getTime()) && eventDate >= today
+      })
+      .sort((a, b) => new Date(a.eventDate) - new Date(b.eventDate))
+  }, [confirmedBookings])
+
+  /* ============================================================
+     TODAY'S EVENTS
+  ============================================================ */
+
+  const todaysEvents = useMemo(() => {
+    const today = new Date()
+
+    return ownerBookings
+      .filter((booking) => {
+        return isSameDay(booking?.eventDate, today)
+      })
+      .sort((a, b) => {
+        const first = new Date(a.eventDate).getTime()
+
+        const second = new Date(b.eventDate).getTime()
+
+        return first - second
+      })
+  }, [ownerBookings])
+
+  /* ============================================================
+     OCCUPANCY RATE
+     
+     NOTE:
+     This is a simple booking-based calculation because
+     the existing page does not provide a dedicated
+     occupancy API.
+  ============================================================ */
+
+  const occupancyRate = useMemo(() => {
+    if (myVenues.length === 0 || confirmedBookings.length === 0) {
+      return 0
+    }
+
+    const currentMonth = new Date().getMonth()
+
+    const currentYear = new Date().getFullYear()
+
+    const currentMonthBookings = confirmedBookings.filter((booking) => {
+      if (!booking?.eventDate) {
+        return false
+      }
+
+      const date = new Date(booking.eventDate)
+
+      return date.getMonth() === currentMonth && date.getFullYear() === currentYear
+    })
+
+    const availableSlots = myVenues.length * 30
+
+    if (availableSlots === 0) {
+      return 0
+    }
+
+    return Math.min(100, Math.round((currentMonthBookings.length / availableSlots) * 100))
+  }, [myVenues.length, confirmedBookings])
+
+  /* ============================================================
+     RATING
+  ============================================================ */
+
+  const ratingInfo = useMemo(() => {
+    let totalRating = 0
+    let ratedVenueCount = 0
+    let totalReviews = 0
+
+    myVenues.forEach((venue) => {
+      const rating = typeof venue?.rating === 'object' ? venue?.rating?.average : venue?.rating
+
+      const reviewCount = Number(
+        venue?.rating?.count || venue?.reviewCount || venue?.reviewsCount || 0
+      )
+
+      const parsedRating = Number(rating)
+
+      if (Number.isFinite(parsedRating) && parsedRating > 0) {
+        totalRating += parsedRating
+        ratedVenueCount++
+      }
+
+      totalReviews += reviewCount
+    })
+
+    return {
+      average: ratedVenueCount > 0 ? (totalRating / ratedVenueCount).toFixed(1) : '0.0',
+
+      reviews: totalReviews,
+    }
+  }, [myVenues])
+
+  /* ============================================================
+     CALENDAR
+  ============================================================ */
+
+  const calendarYear = calendarDate.getFullYear()
+
+  const calendarMonth = calendarDate.getMonth()
+
+  const monthName = calendarDate.toLocaleString('en-US', {
+    month: 'long',
   })
 
-  const avgRating =
-    myVenues.length > 0
-      ? (
-          myVenues.reduce(
-            (acc, v) => acc + (typeof v.rating === 'object' ? v.rating?.average : v.rating || 4.5),
-            0
-          ) / myVenues.length
-        ).toFixed(1)
-      : '0.0'
+  const firstDay = new Date(calendarYear, calendarMonth, 1).getDay()
+
+  const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate()
+
+  const calendarCells = []
+
+  for (let i = 0; i < firstDay; i++) {
+    calendarCells.push(null)
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    calendarCells.push(day)
+  }
+
+  const getCalendarBooking = (day) => {
+    if (!day) return null
+
+    return ownerBookings.find((booking) => {
+      if (!booking?.eventDate) {
+        return false
+      }
+
+      const date = new Date(booking.eventDate)
+
+      return (
+        date.getFullYear() === calendarYear &&
+        date.getMonth() === calendarMonth &&
+        date.getDate() === day
+      )
+    })
+  }
+
+  const goPreviousMonth = () => {
+    setCalendarDate(new Date(calendarYear, calendarMonth - 1, 1))
+  }
+
+  const goNextMonth = () => {
+    setCalendarDate(new Date(calendarYear, calendarMonth + 1, 1))
+  }
+
+  /* ============================================================
+     TODAY'S SCHEDULE FORMAT
+  ============================================================ */
+
+  const formatEventTime = (booking) => {
+    if (!booking?.eventDate) {
+      return '--'
+    }
+
+    const date = new Date(booking.eventDate)
+
+    if (Number.isNaN(date.getTime())) {
+      return '--'
+    }
+
+    return date.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  /* ============================================================
+     APPROVE BOOKING
+  ============================================================ */
 
   const handleConfirm = async (id) => {
+    if (!id) {
+      toast.error('Booking ID is missing')
+
+      return
+    }
+
     try {
+      setProcessingBookingId(id)
+
       await dispatch(confirmBooking(id)).unwrap()
-      toast.success('Booking request accepted! Customer notified.')
-    } catch {
-      toast.error('Failed to confirm booking')
+
+      toast.success('Booking request accepted! Customer notified to complete payment.')
+
+      await dispatch(fetchOwnerBookings()).unwrap()
+    } catch (error) {
+      console.error('CONFIRM BOOKING ERROR:', error)
+
+      toast.error(error?.message || 'Failed to confirm booking')
+    } finally {
+      setProcessingBookingId(null)
     }
   }
+
+  /* ============================================================
+     REJECT BOOKING
+  ============================================================ */
 
   const handleReject = async (id) => {
-    const reason = prompt('Reason for rejecting:')
-    if (!reason) return
+    if (!id) {
+      toast.error('Booking ID is missing')
+
+      return
+    }
+
+    const reason = window.prompt('Reason for rejecting:')
+
+    if (!reason) {
+      return
+    }
+
     try {
-      await dispatch(rejectBooking({ id, reason })).unwrap()
+      setProcessingBookingId(id)
+
+      await dispatch(
+        rejectBooking({
+          id,
+          reason,
+        })
+      ).unwrap()
+
       toast.success('Booking request rejected')
-    } catch {
-      toast.error('Failed to reject booking')
+
+      await dispatch(fetchOwnerBookings()).unwrap()
+    } catch (error) {
+      console.error('REJECT BOOKING ERROR:', error)
+
+      toast.error(error?.message || 'Failed to reject booking')
+    } finally {
+      setProcessingBookingId(null)
     }
   }
 
+  /* ============================================================
+     QUICK ACTIONS
+  ============================================================ */
+
+  const quickActions = [
+    {
+      label: 'Add New Venue',
+      icon: PlusCircle,
+      path: '/owner/venues/new',
+      color: '#6344f5',
+      bg: '#f0ebff',
+    },
+    {
+      label: 'Manage Calendar',
+      icon: Calendar,
+      path: '/owner/calendar',
+      color: '#10b981',
+      bg: '#ecfdf5',
+    },
+    {
+      label: 'Venue Packages',
+      icon: Package,
+      path: '/owner/venues',
+      color: '#f59e0b',
+      bg: '#fffbe6',
+    },
+    {
+      label: 'Gallery Images',
+      icon: ImageIcon,
+      path: '/owner/venues',
+      color: '#3b82f6',
+      bg: '#eff6ff',
+    },
+    {
+      label: 'Pricing & Rates',
+      icon: DollarSign,
+      path: '/owner/venues',
+      color: '#ef4444',
+      bg: '#fef2f2',
+    },
+    {
+      label: 'Promotions',
+      icon: Tag,
+      path: '/owner/venues',
+      color: '#8b5cf6',
+      bg: '#f3e8ff',
+    },
+    {
+      label: 'Reports',
+      icon: BarChart3,
+      path: '/owner/earnings',
+      color: '#06b6d4',
+      bg: '#cffafe',
+    },
+  ]
+
+  /* ============================================================
+     KPI DATA
+  ============================================================ */
+
+  const kpis = [
+    {
+      title: 'Total Revenue',
+      value: formatCurrency(grossRevenue),
+      icon: DollarSign,
+      color: '#6344f5',
+      background: '#6344f5',
+    },
+    {
+      title: 'Total Bookings',
+      value: ownerBookings.length,
+      icon: CalendarCheck,
+      color: '#22c55e',
+      background: '#22c55e',
+    },
+    {
+      title: 'Occupancy Rate',
+      value: `${occupancyRate}%`,
+      icon: PieChart,
+      color: '#3b82f6',
+      background: '#3b82f6',
+    },
+    {
+      title: 'Pending Requests',
+      value: pendingBookings.length,
+      icon: Briefcase,
+      color: '#f97316',
+      background: '#f97316',
+    },
+    {
+      title: 'Upcoming Events',
+      value: upcomingEvents.length,
+      icon: Building2,
+      color: '#a855f7',
+      background: '#a855f7',
+    },
+  ]
+
+  /* ============================================================
+     RENDER
+  ============================================================ */
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24, paddingBottom: 40 }}>
-      {/* ============================================================ */}
-      {/* 1. TOP WELCOME BANNER MATCHING REFERENCE IMAGE               */}
-      {/* ============================================================ */}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 24,
+        paddingBottom: 40,
+      }}
+    >
+      {/* ========================================================
+          HERO
+      ======================================================== */}
+
       <div
         className="card"
         style={{
@@ -142,14 +601,13 @@ const OwnerDashboard = () => {
           background: 'linear-gradient(135deg, #f7f5ff 0%, #f0ebff 60%, #e8e2ff 100%)',
           border: '1px solid #e2e8f0',
           overflow: 'hidden',
-          minHeight: 175,
+          minHeight: 180,
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'center',
           boxShadow: '0 4px 20px rgba(99, 68, 245, 0.04)',
         }}
       >
-        {/* Full-height 3D Castle Palace Asset */}
         <img
           src="/castle.png"
           alt="3D Palace"
@@ -168,8 +626,12 @@ const OwnerDashboard = () => {
           }}
         />
 
-        {/* Banner Content */}
-        <div style={{ zIndex: 2, maxWidth: '65%' }}>
+        <div
+          style={{
+            zIndex: 2,
+            maxWidth: '65%',
+          }}
+        >
           <div
             style={{
               fontSize: 11,
@@ -182,6 +644,7 @@ const OwnerDashboard = () => {
           >
             WELCOME BACK 👋
           </div>
+
           <h1
             style={{
               fontSize: 32,
@@ -192,14 +655,28 @@ const OwnerDashboard = () => {
               letterSpacing: '-0.02em',
             }}
           >
-            Good morning, {user?.name?.split(' ')[0] || 'affan'}!
+            Good morning, {user?.name?.split(' ')[0] || 'Owner'}!
           </h1>
-          <p style={{ color: '#64748b', fontSize: 14, margin: '0 0 24px 0', fontWeight: 500 }}>
+
+          <p
+            style={{
+              color: '#64748b',
+              fontSize: 14,
+              margin: '0 0 24px 0',
+              fontWeight: 500,
+            }}
+          >
             Here's what's happening with your venues today.
           </p>
 
-          {/* 4 Action Pill Buttons */}
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              flexWrap: 'wrap',
+              alignItems: 'center',
+            }}
+          >
             <Link
               to="/owner/venues/new"
               className="btn btn-primary"
@@ -216,7 +693,8 @@ const OwnerDashboard = () => {
                 textDecoration: 'none',
               }}
             >
-              <Plus size={16} /> Add Venue
+              <Plus size={16} />
+              Add Venue
             </Link>
 
             <Link
@@ -232,14 +710,14 @@ const OwnerDashboard = () => {
                 color: '#334155',
                 border: '1px solid #e2e8f0',
                 textDecoration: 'none',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
               }}
             >
-              <Calendar size={16} /> Calendar
+              <Calendar size={16} />
+              Calendar
             </Link>
 
             <Link
-              to="/owner/bookings"
+              to="/owner/inquiries"
               className="btn btn-secondary"
               style={{
                 borderRadius: 14,
@@ -251,12 +729,12 @@ const OwnerDashboard = () => {
                 color: '#334155',
                 border: '1px solid #e2e8f0',
                 textDecoration: 'none',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
                 display: 'inline-flex',
                 alignItems: 'center',
               }}
             >
-              <FileText size={16} /> Inquiries
+              <FileText size={16} />
+              Inquiries
               <span
                 style={{
                   background: pendingBookings.length > 0 ? '#6344f5' : '#cbd5e1',
@@ -289,652 +767,162 @@ const OwnerDashboard = () => {
                 color: '#334155',
                 border: '1px solid #e2e8f0',
                 textDecoration: 'none',
-                boxShadow: '0 2px 6px rgba(0,0,0,0.02)',
               }}
             >
-              <Eye size={16} /> View Bookings
+              <Eye size={16} />
+              View Bookings
             </Link>
+
+            <button
+              type="button"
+              onClick={() => loadDashboard(true)}
+              disabled={refreshing}
+              className="btn btn-secondary"
+              style={{
+                borderRadius: 14,
+                padding: '10px 14px',
+                background: '#ffffff',
+                border: '1px solid #e2e8f0',
+              }}
+            >
+              <RefreshCw
+                size={16}
+                style={{
+                  animation: refreshing ? 'spin 1s linear infinite' : undefined,
+                }}
+              />
+            </button>
           </div>
         </div>
       </div>
 
-      {/* ============================================================ */}
-      {/* 2. 5 KPI STAT CARDS ROW WITH ACCURATE TRENDS & SPARKLINES   */}
-      {/* ============================================================ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16 }}>
-        {/* Card 1: Total Revenue */}
-        <div
-          className="card"
-          style={{
-            padding: '20px 20px 0 20px',
-            borderRadius: 20,
-            background: 'var(--surface-1)',
-            border: '1px solid var(--border-subtle)',
-            position: 'relative',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
+      {/* ========================================================
+          KPI CARDS
+      ======================================================== */}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(5, 1fr)',
+          gap: 16,
+        }}
+      >
+        {kpis.map((kpi) => {
+          const Icon = kpi.icon
+
+          return (
             <div
+              className="card"
+              key={kpi.title}
               style={{
+                padding: '20px 20px 0 20px',
+                borderRadius: 20,
+                background: 'var(--surface-1)',
+                border: '1px solid var(--border-subtle)',
+                overflow: 'hidden',
                 display: 'flex',
-                alignItems: 'center',
+                flexDirection: 'column',
                 justifyContent: 'space-between',
-                marginBottom: 14,
+                minWidth: 0,
               }}
             >
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  background: '#6344f5',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(99, 68, 245, 0.3)',
-                }}
-              >
-                <DollarSign size={22} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>
-                  Total Revenue
-                </span>
-                <span
+              <div>
+                <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: 'var(--text-tertiary)',
-                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    marginBottom: 14,
                   }}
                 >
-                  ⓘ
-                </span>
-              </div>
-            </div>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      background: kpi.background,
+                      color: '#ffffff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: `0 4px 12px ${kpi.background}44`,
+                    }}
+                  >
+                    <Icon size={22} />
+                  </div>
 
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap' }}>
-              <span
-                style={{
-                  fontSize: 22,
-                  fontWeight: 900,
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                ₹{grossRevenue.toLocaleString('en-IN')}
-              </span>
-              {grossRevenue > 0 ? (
-                <span
-                  style={{ fontSize: 11, color: '#10b981', fontWeight: 700, whiteSpace: 'nowrap' }}
-                >
-                  ↑ 18.6%
-                </span>
-              ) : (
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}>
-                  —
-                </span>
-              )}
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: 'var(--text-tertiary)',
-                marginTop: 2,
-                marginBottom: 12,
-              }}
-            >
-              {grossRevenue > 0 ? 'vs last month' : 'No confirmed revenue yet'}
-            </div>
-          </div>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      color: 'var(--text-tertiary)',
+                      textAlign: 'right',
+                    }}
+                  >
+                    {kpi.title}
+                  </span>
+                </div>
 
-          {/* Mini Sparkline Wave Chart */}
-          <div
-            style={{
-              height: 38,
-              width: 'calc(100% + 40px)',
-              marginLeft: -20,
-              marginRight: -20,
-              marginBottom: -2,
-              display: 'block',
-            }}
-          >
-            <svg
-              width="100%"
-              height="38"
-              viewBox="0 0 200 38"
-              preserveAspectRatio="none"
-              style={{ display: 'block' }}
-            >
-              <path
-                d="M 0 28 C 40 10, 80 32, 120 12 C 160 26, 180 6, 200 12 L 200 38 L 0 38 Z"
-                fill="rgba(99, 68, 245, 0.12)"
-              />
-              <path
-                d="M 0 28 C 40 10, 80 32, 120 12 C 160 26, 180 6, 200 12"
-                fill="none"
-                stroke="#6344f5"
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-        </div>
-
-        {/* Card 2: Total Bookings */}
-        <div
-          className="card"
-          style={{
-            padding: '20px 20px 0 20px',
-            borderRadius: 20,
-            background: 'var(--surface-1)',
-            border: '1px solid var(--border-subtle)',
-            position: 'relative',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 14,
-              }}
-            >
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  background: '#22c55e',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(34, 197, 94, 0.3)',
-                }}
-              >
-                <CalendarCheck size={22} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>
-                  Total Bookings
-                </span>
-                <span
+                <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: 'var(--text-tertiary)',
-                    cursor: 'pointer',
+                    fontSize: 22,
+                    fontWeight: 900,
+                    color: 'var(--text-primary)',
+                    fontFamily: 'var(--font-display)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
                   }}
                 >
-                  ⓘ
-                </span>
+                  {kpi.value}
+                </div>
               </div>
-            </div>
 
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap' }}>
-              <span
-                style={{
-                  fontSize: 22,
-                  fontWeight: 900,
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {ownerBookings.length}
-              </span>
-              {ownerBookings.length > 0 ? (
-                <span
-                  style={{ fontSize: 11, color: '#10b981', fontWeight: 700, whiteSpace: 'nowrap' }}
-                >
-                  ↑ 12.5%
-                </span>
-              ) : (
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}>
-                  —
-                </span>
-              )}
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: 'var(--text-tertiary)',
-                marginTop: 2,
-                marginBottom: 12,
-              }}
-            >
-              {ownerBookings.length > 0 ? 'vs last month' : '0 total reservations'}
-            </div>
-          </div>
-
-          {/* Mini Sparkline Wave Chart */}
-          <div
-            style={{
-              height: 38,
-              width: 'calc(100% + 40px)',
-              marginLeft: -20,
-              marginRight: -20,
-              marginBottom: -2,
-              display: 'block',
-            }}
-          >
-            <svg
-              width="100%"
-              height="38"
-              viewBox="0 0 200 38"
-              preserveAspectRatio="none"
-              style={{ display: 'block' }}
-            >
-              <path
-                d="M 0 32 C 50 18, 100 28, 150 12 C 180 22, 190 8, 200 14 L 200 38 L 0 38 Z"
-                fill="rgba(34, 197, 94, 0.12)"
-              />
-              <path
-                d="M 0 32 C 50 18, 100 28, 150 12 C 180 22, 190 8, 200 14"
-                fill="none"
-                stroke="#22c55e"
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-        </div>
-
-        {/* Card 3: Occupancy Rate */}
-        <div
-          className="card"
-          style={{
-            padding: '20px 20px 0 20px',
-            borderRadius: 20,
-            background: 'var(--surface-1)',
-            border: '1px solid var(--border-subtle)',
-            position: 'relative',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 14,
-              }}
-            >
               <div
                 style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  background: '#3b82f6',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
+                  height: 5,
+                  marginTop: 16,
+                  background: `${kpi.background}18`,
+                  borderRadius: '5px 5px 0 0',
                 }}
               >
-                <PieChart size={22} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>
-                  Occupancy Rate
-                </span>
-                <span
+                <div
                   style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: 'var(--text-tertiary)',
-                    cursor: 'pointer',
+                    width: kpi.title === 'Occupancy Rate' ? `${occupancyRate}%` : '35%',
+                    height: '100%',
+                    background: kpi.background,
+                    borderRadius: '5px 5px 0 0',
+                    opacity: 0.8,
                   }}
-                >
-                  ⓘ
-                </span>
+                />
               </div>
             </div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap' }}>
-              <span
-                style={{
-                  fontSize: 22,
-                  fontWeight: 900,
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {occupancyRate}%
-              </span>
-              {occupancyRate > 0 ? (
-                <span
-                  style={{ fontSize: 11, color: '#10b981', fontWeight: 700, whiteSpace: 'nowrap' }}
-                >
-                  ↑ 8.4%
-                </span>
-              ) : (
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}>
-                  —
-                </span>
-              )}
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: 'var(--text-tertiary)',
-                marginTop: 2,
-                marginBottom: 12,
-              }}
-            >
-              Across {myVenues.length} venue{myVenues.length === 1 ? '' : 's'}
-            </div>
-          </div>
-
-          {/* Mini Sparkline Wave Chart */}
-          <div
-            style={{
-              height: 38,
-              width: 'calc(100% + 40px)',
-              marginLeft: -20,
-              marginRight: -20,
-              marginBottom: -2,
-              display: 'block',
-            }}
-          >
-            <svg
-              width="100%"
-              height="38"
-              viewBox="0 0 200 38"
-              preserveAspectRatio="none"
-              style={{ display: 'block' }}
-            >
-              <path
-                d="M 0 24 C 40 32, 90 12, 140 28 C 170 18, 190 22, 200 10 L 200 38 L 0 38 Z"
-                fill="rgba(59, 130, 246, 0.12)"
-              />
-              <path
-                d="M 0 24 C 40 32, 90 12, 140 28 C 170 18, 190 22, 200 10"
-                fill="none"
-                stroke="#3b82f6"
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-        </div>
-
-        {/* Card 4: Pending Requests */}
-        <div
-          className="card"
-          style={{
-            padding: '20px 20px 0 20px',
-            borderRadius: 20,
-            background: 'var(--surface-1)',
-            border: '1px solid var(--border-subtle)',
-            position: 'relative',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 14,
-              }}
-            >
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  background: '#f97316',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(249, 115, 22, 0.3)',
-                }}
-              >
-                <Briefcase size={22} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>
-                  Pending Requests
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: 'var(--text-tertiary)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ⓘ
-                </span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap' }}>
-              <span
-                style={{
-                  fontSize: 22,
-                  fontWeight: 900,
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {pendingBookings.length}
-              </span>
-              {pendingBookings.length > 0 ? (
-                <span
-                  style={{ fontSize: 11, color: '#f97316', fontWeight: 700, whiteSpace: 'nowrap' }}
-                >
-                  Requires Action
-                </span>
-              ) : (
-                <span
-                  style={{ fontSize: 11, color: '#10b981', fontWeight: 700, whiteSpace: 'nowrap' }}
-                >
-                  Cleared
-                </span>
-              )}
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: 'var(--text-tertiary)',
-                marginTop: 2,
-                marginBottom: 12,
-              }}
-            >
-              {pendingBookings.length > 0
-                ? 'Pending customer inquiries'
-                : 'All inquiries processed'}
-            </div>
-          </div>
-
-          {/* Mini Sparkline Wave Chart */}
-          <div
-            style={{
-              height: 38,
-              width: 'calc(100% + 40px)',
-              marginLeft: -20,
-              marginRight: -20,
-              marginBottom: -2,
-              display: 'block',
-            }}
-          >
-            <svg
-              width="100%"
-              height="38"
-              viewBox="0 0 200 38"
-              preserveAspectRatio="none"
-              style={{ display: 'block' }}
-            >
-              <path
-                d="M 0 18 C 60 28, 110 8, 160 30 C 180 20, 190 24, 200 28 L 200 38 L 0 38 Z"
-                fill="rgba(249, 115, 22, 0.12)"
-              />
-              <path
-                d="M 0 18 C 60 28, 110 8, 160 30 C 180 20, 190 24, 200 28"
-                fill="none"
-                stroke="#f97316"
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-        </div>
-
-        {/* Card 5: Upcoming Events */}
-        <div
-          className="card"
-          style={{
-            padding: '20px 20px 0 20px',
-            borderRadius: 20,
-            background: 'var(--surface-1)',
-            border: '1px solid var(--border-subtle)',
-            position: 'relative',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-          }}
-        >
-          <div>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: 14,
-              }}
-            >
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 14,
-                  background: '#a855f7',
-                  color: '#ffffff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 4px 12px rgba(168, 85, 247, 0.3)',
-                }}
-              >
-                <Building2 size={22} />
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)' }}>
-                  Upcoming Events
-                </span>
-                <span
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: 'var(--text-tertiary)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  ⓘ
-                </span>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'nowrap' }}>
-              <span
-                style={{
-                  fontSize: 22,
-                  fontWeight: 900,
-                  color: 'var(--text-primary)',
-                  fontFamily: 'var(--font-display)',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {upcomingEvents.length}
-              </span>
-              {upcomingEvents.length > 0 ? (
-                <span
-                  style={{ fontSize: 11, color: '#10b981', fontWeight: 700, whiteSpace: 'nowrap' }}
-                >
-                  ↑ 15.3%
-                </span>
-              ) : (
-                <span style={{ fontSize: 11, color: 'var(--text-tertiary)', fontWeight: 500 }}>
-                  —
-                </span>
-              )}
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                color: 'var(--text-tertiary)',
-                marginTop: 2,
-                marginBottom: 12,
-              }}
-            >
-              {upcomingEvents.length > 0 ? 'Upcoming reservations' : 'No events scheduled'}
-            </div>
-          </div>
-
-          {/* Mini Sparkline Wave Chart */}
-          <div
-            style={{
-              height: 38,
-              width: 'calc(100% + 40px)',
-              marginLeft: -20,
-              marginRight: -20,
-              marginBottom: -2,
-              display: 'block',
-            }}
-          >
-            <svg
-              width="100%"
-              height="38"
-              viewBox="0 0 200 38"
-              preserveAspectRatio="none"
-              style={{ display: 'block' }}
-            >
-              <path
-                d="M 0 28 C 50 14, 100 32, 150 16 C 170 24, 190 8, 200 12 L 200 38 L 0 38 Z"
-                fill="rgba(168, 85, 247, 0.12)"
-              />
-              <path
-                d="M 0 28 C 50 14, 100 32, 150 16 C 170 24, 190 8, 200 12"
-                fill="none"
-                stroke="#a855f7"
-                strokeWidth="2"
-              />
-            </svg>
-          </div>
-        </div>
+          )
+        })}
       </div>
 
-      {/* ============================================================ */}
-      {/* 3. MIDDLE GRID (REVENUE CHART, CALENDAR, TODAY'S SCHEDULE)   */}
-      {/* ============================================================ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 20 }}>
-        {/* Column 1: Revenue Overview Chart */}
+      {/* ========================================================
+          MIDDLE GRID
+      ======================================================== */}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.2fr 1fr 1fr',
+          gap: 20,
+        }}
+      >
+        {/* ======================================================
+            REVENUE
+        ====================================================== */}
+
         <div
           className="card"
-          style={{ padding: 20, borderRadius: 20, background: 'var(--surface-1)' }}
+          style={{
+            padding: 20,
+            borderRadius: 20,
+            background: 'var(--surface-1)',
+          }}
         >
           <div
             style={{
@@ -944,64 +932,64 @@ const OwnerDashboard = () => {
               marginBottom: 16,
             }}
           >
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Revenue Overview</h3>
-            <select
+            <h3
               style={{
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-subtle)',
-                padding: '4px 10px',
-                borderRadius: 8,
-                fontSize: 12,
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
+                fontSize: 15,
+                fontWeight: 800,
+                margin: 0,
               }}
             >
-              <option>This Month</option>
-              <option>Last Month</option>
-              <option>This Year</option>
-            </select>
+              Revenue Overview
+            </h3>
+
+            <span
+              style={{
+                fontSize: 11,
+                color: 'var(--text-tertiary)',
+              }}
+            >
+              All time
+            </span>
           </div>
 
-          <div style={{ marginBottom: 16 }}>
+          <div
+            style={{
+              marginBottom: 16,
+            }}
+          >
             <div
               style={{
                 fontSize: 24,
                 fontWeight: 900,
                 color: 'var(--text-primary)',
-                fontFamily: 'var(--font-display)',
               }}
             >
-              ₹{grossRevenue.toLocaleString('en-IN')}
+              {formatCurrency(grossRevenue)}
             </div>
+
             <div
               style={{
                 fontSize: 11,
-                color: grossRevenue > 0 ? '#10b981' : 'var(--text-tertiary)',
-                fontWeight: 700,
-                marginTop: 2,
+                color: 'var(--text-tertiary)',
+                marginTop: 3,
               }}
             >
-              {grossRevenue > 0 ? '↑ 18.6% vs last month' : 'No revenue recorded yet'}
+              Based on confirmed and completed bookings
             </div>
           </div>
 
-          {/* SVG Smooth Bezier Area Chart */}
-          <div style={{ width: '100%', height: 160, position: 'relative' }}>
-            <svg
-              width="100%"
-              height="160"
-              viewBox="0 0 400 160"
-              preserveAspectRatio="none"
-              style={{ overflow: 'visible' }}
-            >
+          <div
+            style={{
+              width: '100%',
+              height: 160,
+            }}
+          >
+            <svg width="100%" height="160" viewBox="0 0 400 160" preserveAspectRatio="none">
               <defs>
-                <linearGradient id="chartGradientOwner" x1="0" y1="0" x2="0" y2="1">
-                  <stop
-                    offset="0%"
-                    stopColor="#6344f5"
-                    stopOpacity={grossRevenue > 0 ? 0.35 : 0.05}
-                  />
-                  <stop offset="100%" stopColor="#6344f5" stopOpacity="0.0" />
+                <linearGradient id="ownerRevenueGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#6344f5" stopOpacity="0.30" />
+
+                  <stop offset="100%" stopColor="#6344f5" stopOpacity="0" />
                 </linearGradient>
               </defs>
 
@@ -1013,6 +1001,7 @@ const OwnerDashboard = () => {
                 stroke="var(--border-subtle)"
                 strokeDasharray="3 3"
               />
+
               <line
                 x1="0"
                 y1="60"
@@ -1021,6 +1010,7 @@ const OwnerDashboard = () => {
                 stroke="var(--border-subtle)"
                 strokeDasharray="3 3"
               />
+
               <line
                 x1="0"
                 y1="100"
@@ -1029,28 +1019,23 @@ const OwnerDashboard = () => {
                 stroke="var(--border-subtle)"
                 strokeDasharray="3 3"
               />
+
               <line x1="0" y1="140" x2="400" y2="140" stroke="var(--border-subtle)" />
 
               {grossRevenue > 0 ? (
                 <>
                   <path
                     d="M 0,120 C 80,90 160,110 240,50 C 300,70 350,40 400,30 L 400,140 L 0,140 Z"
-                    fill="url(#chartGradientOwner)"
+                    fill="url(#ownerRevenueGradient)"
                   />
+
                   <path
                     d="M 0,120 C 80,90 160,110 240,50 C 300,70 350,40 400,30"
                     fill="none"
                     stroke="#6344f5"
                     strokeWidth="3.5"
                   />
-                  <circle
-                    cx="240"
-                    cy="50"
-                    r="4"
-                    fill="#ffffff"
-                    stroke="#6344f5"
-                    strokeWidth="2.5"
-                  />
+
                   <circle
                     cx="400"
                     cy="30"
@@ -1061,37 +1046,34 @@ const OwnerDashboard = () => {
                   />
                 </>
               ) : (
-                <path
-                  d="M 0,140 L 400,140"
-                  fill="none"
-                  stroke="var(--border-subtle)"
-                  strokeWidth="2"
-                />
+                <line x1="0" y1="140" x2="400" y2="140" stroke="#cbd5e1" strokeWidth="2" />
               )}
             </svg>
 
             <div
               style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                fontSize: 10,
+                textAlign: 'center',
+                fontSize: 11,
                 color: 'var(--text-tertiary)',
                 marginTop: 8,
               }}
             >
-              <span>1 Aug</span>
-              <span>7 Aug</span>
-              <span>14 Aug</span>
-              <span>21 Aug</span>
-              <span>28 Aug</span>
+              Revenue chart will reflect booking history
             </div>
           </div>
         </div>
 
-        {/* Column 2: Booking Calendar Widget */}
+        {/* ======================================================
+            CALENDAR
+        ====================================================== */}
+
         <div
           className="card"
-          style={{ padding: 20, borderRadius: 20, background: 'var(--surface-1)' }}
+          style={{
+            padding: 20,
+            borderRadius: 20,
+            background: 'var(--surface-1)',
+          }}
         >
           <div
             style={{
@@ -1101,59 +1083,113 @@ const OwnerDashboard = () => {
               marginBottom: 14,
             }}
           >
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Booking Calendar</h3>
+            <h3
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                margin: 0,
+              }}
+            >
+              Booking Calendar
+            </h3>
+
             <Link
               to="/owner/calendar"
-              style={{ fontSize: 11, fontWeight: 700, color: '#6344f5', textDecoration: 'none' }}
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#6344f5',
+                textDecoration: 'none',
+              }}
             >
-              View Full Calendar →
+              Full Calendar →
             </Link>
           </div>
 
           <div
             style={{
-              textAlign: 'center',
-              fontWeight: 800,
-              fontSize: 13,
-              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               marginBottom: 12,
             }}
           >
-            &lt; August 2026 &gt;
+            <button
+              type="button"
+              onClick={goPreviousMonth}
+              className="btn btn-secondary btn-sm"
+              style={{
+                padding: 5,
+              }}
+            >
+              <ChevronLeft size={15} />
+            </button>
+
+            <strong
+              style={{
+                fontSize: 13,
+              }}
+            >
+              {monthName} {calendarYear}
+            </strong>
+
+            <button
+              type="button"
+              onClick={goNextMonth}
+              className="btn btn-secondary btn-sm"
+              style={{
+                padding: 5,
+              }}
+            >
+              <ChevronRight size={15} />
+            </button>
           </div>
 
-          {/* Days Grid */}
           <div
             style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(7, 1fr)',
               gap: 4,
               textAlign: 'center',
-              fontSize: 11,
             }}
           >
-            {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d, i) => (
+            {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day) => (
               <div
-                key={i}
+                key={day}
                 style={{
                   color: 'var(--text-tertiary)',
                   fontWeight: 700,
-                  fontSize: 9,
+                  fontSize: 8,
                   marginBottom: 4,
                 }}
               >
-                {d}
+                {day}
               </div>
             ))}
-            {[
-              26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
-              19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
-            ].map((day, idx) => {
-              const isToday = day === 20 && idx >= 20
-              const isMuted = idx < 6 || idx > 30
+
+            {calendarCells.map((day, index) => {
+              const booking = getCalendarBooking(day)
+
+              const today = new Date()
+
+              const isToday =
+                day &&
+                today.getFullYear() === calendarYear &&
+                today.getMonth() === calendarMonth &&
+                today.getDate() === day
+
+              const status = getBookingStatus(booking)
+
+              const isBooked =
+                booking &&
+                (status === 'confirmed' || status === 'accepted' || status === 'completed')
+
+              const isPending = booking && status === 'pending'
+
               return (
                 <div
-                  key={idx}
+                  key={`${day}-${index}`}
+                  title={booking ? `${getVenueName(booking)} - ${status}` : 'Available'}
                   style={{
                     height: 26,
                     display: 'flex',
@@ -1161,14 +1197,15 @@ const OwnerDashboard = () => {
                     justifyContent: 'center',
                     borderRadius: 8,
                     fontSize: 11,
-                    fontWeight: isToday ? 800 : 500,
-                    background: isToday ? '#6344f5' : 'transparent',
-                    color: isToday
-                      ? '#ffffff'
-                      : isMuted
-                        ? 'var(--text-tertiary)'
-                        : 'var(--text-primary)',
-                    cursor: 'pointer',
+                    fontWeight: isToday || booking ? 800 : 500,
+                    background: isToday
+                      ? '#6344f5'
+                      : isBooked
+                        ? '#ef4444'
+                        : isPending
+                          ? '#f59e0b'
+                          : 'transparent',
+                    color: isToday || isBooked || isPending ? '#ffffff' : 'var(--text-primary)',
                   }}
                 >
                   {day}
@@ -1177,38 +1214,29 @@ const OwnerDashboard = () => {
             })}
           </div>
 
-          {/* Legend */}
           <div
             style={{
               display: 'flex',
               justifyContent: 'space-between',
-              fontSize: 10,
+              fontSize: 9,
               color: 'var(--text-tertiary)',
               marginTop: 14,
               paddingTop: 10,
               borderTop: '1px solid var(--border-subtle)',
             }}
           >
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10b981' }} />{' '}
-              Available
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#f59e0b' }} />{' '}
-              Pending
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#6344f5' }} />{' '}
-              Booked
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />{' '}
-              Blocked
-            </span>
+            <span>🟢 Available</span>
+
+            <span>🟡 Pending</span>
+
+            <span>🔴 Booked</span>
           </div>
         </div>
 
-        {/* Column 3: Today's Schedule */}
+        {/* ======================================================
+            TODAY'S SCHEDULE
+        ====================================================== */}
+
         <div
           className="card"
           style={{
@@ -1217,45 +1245,94 @@ const OwnerDashboard = () => {
             background: 'var(--surface-1)',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'space-between',
           }}
         >
-          <div>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 16,
+            }}
+          >
+            <h3
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                margin: 0,
+              }}
+            >
+              Today's Schedule
+            </h3>
+
+            <Link
+              to="/owner/calendar"
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#6344f5',
+                textDecoration: 'none',
+              }}
+            >
+              View All →
+            </Link>
+          </div>
+
+          {todaysEvents.length === 0 ? (
+            <div
+              style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 30,
+                textAlign: 'center',
+                color: 'var(--text-tertiary)',
+              }}
+            >
+              <Calendar
+                size={34}
+                style={{
+                  marginBottom: 10,
+                }}
+              />
+
+              <strong
+                style={{
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                No events today
+              </strong>
+
+              <span
+                style={{
+                  fontSize: 10,
+                  marginTop: 4,
+                }}
+              >
+                Your schedule is clear.
+              </span>
+            </div>
+          ) : (
             <div
               style={{
                 display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                marginBottom: 16,
+                flexDirection: 'column',
+                gap: 12,
               }}
             >
-              <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Today's Schedule</h3>
-              <Link
-                to="/owner/calendar"
-                style={{ fontSize: 11, fontWeight: 700, color: '#6344f5', textDecoration: 'none' }}
-              >
-                View All →
-              </Link>
-            </div>
+              {todaysEvents.slice(0, 5).map((booking) => {
+                const status = getBookingStatus(booking)
 
-            {/* Timeline List */}
-            {upcomingEvents.length === 0 ? (
-              <div
-                style={{
-                  textAlign: 'center',
-                  padding: '24px 10px',
-                  color: 'var(--text-tertiary)',
-                  fontSize: 12,
-                }}
-              >
-                <CalendarCheck size={28} style={{ margin: '0 auto 8px auto', opacity: 0.5 }} />
-                No events scheduled for today
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {upcomingEvents.slice(0, 3).map((item, idx) => (
+                const confirmed =
+                  status === 'confirmed' || status === 'accepted' || status === 'completed'
+
+                return (
                   <div
-                    key={item._id || idx}
+                    key={booking._id}
                     style={{
                       display: 'flex',
                       gap: 10,
@@ -1265,28 +1342,60 @@ const OwnerDashboard = () => {
                       borderRadius: 10,
                     }}
                   >
-                    <div style={{ fontSize: 10, fontWeight: 800, color: '#6344f5', width: 45 }}>
-                      {new Date(item.eventDate || Date.now()).toLocaleDateString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                      })}
+                    <div
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 800,
+                        color: '#6344f5',
+                        width: 60,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {formatEventTime(booking)}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)' }}>
-                        {item.venue?.name || 'Your Venue'}
+
+                    <div
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 12,
+                          fontWeight: 800,
+                          color: 'var(--text-primary)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {getVenueName(booking)}
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
-                        Guest: {item.customer?.name || 'Guest'}
+
+                      <div
+                        style={{
+                          fontSize: 10,
+                          color: 'var(--text-tertiary)',
+                        }}
+                      >
+                        {getCustomerName(booking)}
                       </div>
                     </div>
-                    <span className="badge badge-success" style={{ fontSize: 9 }}>
-                      {item.bookingStatus}
+
+                    <span
+                      className={`badge ${confirmed ? 'badge-success' : 'badge-warning'}`}
+                      style={{
+                        fontSize: 9,
+                      }}
+                    >
+                      {confirmed ? 'Confirmed' : 'Pending'}
                     </span>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                )
+              })}
+            </div>
+          )}
 
           <Link
             to="/owner/calendar"
@@ -1302,19 +1411,34 @@ const OwnerDashboard = () => {
               textDecoration: 'none',
             }}
           >
-            <Plus size={14} /> Add Block Time
+            <Plus size={14} />
+            Add Block Time
           </Link>
         </div>
       </div>
 
-      {/* ============================================================ */}
-      {/* 4. LOWER GRID (RECENT REQUESTS, PERFORMANCE, RECENT REVIEWS) */}
-      {/* ============================================================ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: 20 }}>
-        {/* Column 1: Recent Booking Requests Table */}
+      {/* ========================================================
+          LOWER GRID
+      ======================================================== */}
+
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1.2fr 1fr 1fr',
+          gap: 20,
+        }}
+      >
+        {/* ======================================================
+            RECENT BOOKING REQUESTS
+        ====================================================== */}
+
         <div
           className="card"
-          style={{ padding: 20, borderRadius: 20, background: 'var(--surface-1)' }}
+          style={{
+            padding: 20,
+            borderRadius: 20,
+            background: 'var(--surface-1)',
+          }}
         >
           <div
             style={{
@@ -1324,10 +1448,24 @@ const OwnerDashboard = () => {
               marginBottom: 16,
             }}
           >
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Recent Booking Requests</h3>
+            <h3
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                margin: 0,
+              }}
+            >
+              Recent Booking Requests
+            </h3>
+
             <Link
-              to="/owner/bookings"
-              style={{ fontSize: 11, fontWeight: 700, color: '#6344f5', textDecoration: 'none' }}
+              to="/owner/inquiries"
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#6344f5',
+                textDecoration: 'none',
+              }}
             >
               View All →
             </Link>
@@ -1335,95 +1473,188 @@ const OwnerDashboard = () => {
 
           {pendingBookings.length === 0 ? (
             <div
-              style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-tertiary)' }}
+              style={{
+                textAlign: 'center',
+                padding: '30px 10px',
+                color: 'var(--text-tertiary)',
+              }}
             >
-              <CheckCircle2 size={32} style={{ margin: '0 auto 8px auto', color: '#10b981' }} />
-              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                All Clear!
+              <CheckCircle2
+                size={34}
+                style={{
+                  marginBottom: 8,
+                  color: '#22c55e',
+                }}
+              />
+
+              <div
+                style={{
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                No pending requests
               </div>
-              <div style={{ fontSize: 11, marginTop: 2 }}>
-                You have zero pending inquiries for your venues.
+
+              <div
+                style={{
+                  fontSize: 10,
+                  marginTop: 4,
+                }}
+              >
+                New booking requests will appear here.
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {pendingBookings.map((req) => (
-                <div
-                  key={req._id}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: 10,
-                    background: 'var(--bg-subtle)',
-                    borderRadius: 12,
-                    border: '1px solid var(--border-subtle)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              {pendingBookings.slice(0, 5).map((req) => {
+                const processing = processingBookingId === req._id
+
+                return (
+                  <div
+                    key={req._id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: 10,
+                      background: 'var(--bg-subtle)',
+                      borderRadius: 12,
+                      border: '1px solid var(--border-subtle)',
+                      gap: 10,
+                    }}
+                  >
                     <div
                       style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: '50%',
-                        background: '#6344f5',
-                        color: '#fff',
                         display: 'flex',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 12,
-                        fontWeight: 800,
+                        gap: 10,
+                        minWidth: 0,
+                        flex: 1,
                       }}
                     >
-                      {req.customer?.name?.charAt(0)?.toUpperCase() || 'C'}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-primary)' }}>
-                        {req.customer?.name || 'Guest'}
+                      <div
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          background: '#f0ebff',
+                          color: '#6344f5',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 12,
+                          fontWeight: 800,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {getCustomerName(req).charAt(0).toUpperCase()}
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginTop: 1 }}>
-                        {req.venue?.name || 'Your Venue'} • {req.guestCount || 100} Guests
-                      </div>
-                    </div>
-                  </div>
 
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => handleConfirm(req._id)}
-                      className="btn btn-primary btn-sm"
+                      <div
+                        style={{
+                          minWidth: 0,
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: 12,
+                            fontWeight: 800,
+                            color: 'var(--text-primary)',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}
+                        >
+                          {getCustomerName(req)}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 10,
+                            color: 'var(--text-tertiary)',
+                            marginTop: 1,
+                          }}
+                        >
+                          {getVenueName(req)} • {req?.guestCount || req?.guests || 0} Guests
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: 9,
+                            color: 'var(--text-tertiary)',
+                            marginTop: 2,
+                          }}
+                        >
+                          {formatDate(req?.eventDate)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
                       style={{
-                        fontSize: 10,
-                        padding: '4px 10px',
-                        borderRadius: 6,
-                        background: '#10b981',
-                        border: 'none',
+                        display: 'flex',
+                        gap: 6,
+                        flexShrink: 0,
                       }}
                     >
-                      Accept
-                    </button>
-                    <button
-                      onClick={() => handleReject(req._id)}
-                      className="btn btn-secondary btn-sm"
-                      style={{
-                        fontSize: 10,
-                        padding: '4px 10px',
-                        borderRadius: 6,
-                        color: '#ef4444',
-                      }}
-                    >
-                      Reject
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => handleConfirm(req._id)}
+                        disabled={processing}
+                        className="btn btn-primary btn-sm"
+                        style={{
+                          fontSize: 10,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          background: '#10b981',
+                          border: 'none',
+                        }}
+                      >
+                        <CheckCircle2 size={12} />
+                        Accept
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleReject(req._id)}
+                        disabled={processing}
+                        className="btn btn-secondary btn-sm"
+                        style={{
+                          fontSize: 10,
+                          padding: '4px 10px',
+                          borderRadius: 6,
+                          color: '#ef4444',
+                        }}
+                      >
+                        <XCircle size={12} />
+                        Reject
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
 
-        {/* Column 2: Venue Performance Card */}
+        {/* ======================================================
+            VENUE PERFORMANCE
+        ====================================================== */}
+
         <div
           className="card"
-          style={{ padding: 20, borderRadius: 20, background: 'var(--surface-1)' }}
+          style={{
+            padding: 20,
+            borderRadius: 20,
+            background: 'var(--surface-1)',
+          }}
         >
           <div
             style={{
@@ -1433,23 +1664,33 @@ const OwnerDashboard = () => {
               marginBottom: 16,
             }}
           >
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Venue Performance</h3>
-            <select
+            <h3
               style={{
-                border: '1px solid var(--border-subtle)',
-                background: 'var(--bg-subtle)',
-                padding: '4px 8px',
-                borderRadius: 8,
-                fontSize: 11,
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
+                fontSize: 15,
+                fontWeight: 800,
+                margin: 0,
               }}
             >
-              <option>This Month</option>
-            </select>
+              Venue Performance
+            </h3>
+
+            <span
+              style={{
+                fontSize: 10,
+                color: 'var(--text-tertiary)',
+              }}
+            >
+              Live data
+            </span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 1fr',
+              gap: 12,
+            }}
+          >
             <div
               style={{
                 padding: 12,
@@ -1458,9 +1699,16 @@ const OwnerDashboard = () => {
                 border: '1px solid var(--border-subtle)',
               }}
             >
-              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  color: 'var(--text-tertiary)',
+                  fontWeight: 600,
+                }}
+              >
                 Average Rating
               </div>
+
               <div
                 style={{
                   fontSize: 20,
@@ -1469,10 +1717,17 @@ const OwnerDashboard = () => {
                   marginTop: 2,
                 }}
               >
-                {avgRating}
+                {ratingInfo.average}
               </div>
-              <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 2 }}>
-                ★★★★★ ({myVenues.length} Venues)
+
+              <div
+                style={{
+                  fontSize: 10,
+                  color: '#f59e0b',
+                  marginTop: 2,
+                }}
+              >
+                {ratingInfo.average !== '0.0' ? '★★★★★' : 'No ratings yet'}
               </div>
             </div>
 
@@ -1484,9 +1739,16 @@ const OwnerDashboard = () => {
                 border: '1px solid var(--border-subtle)',
               }}
             >
-              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>
-                Total Properties
+              <div
+                style={{
+                  fontSize: 10,
+                  color: 'var(--text-tertiary)',
+                  fontWeight: 600,
+                }}
+              >
+                Total Venues
               </div>
+
               <div
                 style={{
                   fontSize: 20,
@@ -1497,8 +1759,15 @@ const OwnerDashboard = () => {
               >
                 {myVenues.length}
               </div>
-              <div style={{ fontSize: 10, color: '#6344f5', fontWeight: 700, marginTop: 2 }}>
-                Active Listings
+
+              <div
+                style={{
+                  fontSize: 10,
+                  color: 'var(--text-tertiary)',
+                  marginTop: 2,
+                }}
+              >
+                Your listed venues
               </div>
             </div>
 
@@ -1510,9 +1779,16 @@ const OwnerDashboard = () => {
                 border: '1px solid var(--border-subtle)',
               }}
             >
-              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>
-                Total Bookings
+              <div
+                style={{
+                  fontSize: 10,
+                  color: 'var(--text-tertiary)',
+                  fontWeight: 600,
+                }}
+              >
+                Confirmed Bookings
               </div>
+
               <div
                 style={{
                   fontSize: 20,
@@ -1521,10 +1797,18 @@ const OwnerDashboard = () => {
                   marginTop: 2,
                 }}
               >
-                {ownerBookings.length}
+                {confirmedBookings.length}
               </div>
-              <div style={{ fontSize: 10, color: '#10b981', fontWeight: 700, marginTop: 2 }}>
-                All Time
+
+              <div
+                style={{
+                  fontSize: 10,
+                  color: '#10b981',
+                  fontWeight: 700,
+                  marginTop: 2,
+                }}
+              >
+                Current data
               </div>
             </div>
 
@@ -1536,9 +1820,16 @@ const OwnerDashboard = () => {
                 border: '1px solid var(--border-subtle)',
               }}
             >
-              <div style={{ fontSize: 10, color: 'var(--text-tertiary)', fontWeight: 600 }}>
-                Occupancy Rate
+              <div
+                style={{
+                  fontSize: 10,
+                  color: 'var(--text-tertiary)',
+                  fontWeight: 600,
+                }}
+              >
+                Occupancy
               </div>
+
               <div
                 style={{
                   fontSize: 20,
@@ -1549,17 +1840,54 @@ const OwnerDashboard = () => {
               >
                 {occupancyRate}%
               </div>
-              <div style={{ fontSize: 10, color: '#3b82f6', fontWeight: 700, marginTop: 2 }}>
-                Calculated Live
+
+              <div
+                style={{
+                  fontSize: 10,
+                  color: '#3b82f6',
+                  fontWeight: 700,
+                  marginTop: 2,
+                }}
+              >
+                This month
               </div>
             </div>
           </div>
+
+          <div
+            style={{
+              marginTop: 14,
+              padding: 12,
+              borderRadius: 12,
+              background: 'var(--bg-subtle)',
+              fontSize: 10,
+              color: 'var(--text-tertiary)',
+              lineHeight: 1.5,
+            }}
+          >
+            <AlertCircle
+              size={13}
+              style={{
+                verticalAlign: 'middle',
+                marginRight: 5,
+              }}
+            />
+            Views, wishlist and conversion metrics are displayed only when those values are provided
+            by your backend.
+          </div>
         </div>
 
-        {/* Column 3: Recent Guest Reviews Widget */}
+        {/* ======================================================
+            REVIEWS
+        ====================================================== */}
+
         <div
           className="card"
-          style={{ padding: 20, borderRadius: 20, background: 'var(--surface-1)' }}
+          style={{
+            padding: 20,
+            borderRadius: 20,
+            background: 'var(--surface-1)',
+          }}
         >
           <div
             style={{
@@ -1569,10 +1897,24 @@ const OwnerDashboard = () => {
               marginBottom: 16,
             }}
           >
-            <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>Recent Reviews</h3>
+            <h3
+              style={{
+                fontSize: 15,
+                fontWeight: 800,
+                margin: 0,
+              }}
+            >
+              Recent Reviews
+            </h3>
+
             <Link
               to="/owner/reviews"
-              style={{ fontSize: 11, fontWeight: 700, color: '#6344f5', textDecoration: 'none' }}
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: '#6344f5',
+                textDecoration: 'none',
+              }}
             >
               View All →
             </Link>
@@ -1580,84 +1922,73 @@ const OwnerDashboard = () => {
 
           <div
             style={{
+              padding: '28px 10px',
               textAlign: 'center',
-              padding: '24px 10px',
               color: 'var(--text-tertiary)',
-              fontSize: 12,
             }}
           >
-            <Star size={24} style={{ margin: '0 auto 6px auto', color: '#f59e0b' }} />
-            <div>No guest reviews submitted yet for your listed venues.</div>
+            <Star
+              size={34}
+              style={{
+                marginBottom: 10,
+                color: '#f59e0b',
+              }}
+            />
+
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: 'var(--text-secondary)',
+              }}
+            >
+              {ratingInfo.reviews > 0
+                ? `${ratingInfo.reviews} reviews available`
+                : 'No reviews yet'}
+            </div>
+
+            <div
+              style={{
+                fontSize: 10,
+                marginTop: 5,
+              }}
+            >
+              Review details will appear here when review data is available.
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ============================================================ */}
-      {/* 5. BOTTOM BAR — 7 QUICK ACTIONS TILES                       */}
-      {/* ============================================================ */}
+      {/* ========================================================
+          QUICK ACTIONS
+      ======================================================== */}
+
       <div>
         <h3
-          style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginBottom: 12 }}
+          style={{
+            fontSize: 15,
+            fontWeight: 800,
+            color: 'var(--text-primary)',
+            marginBottom: 12,
+          }}
         >
           Quick Actions
         </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 12 }}>
-          {[
-            {
-              label: 'Add New Venue',
-              icon: PlusCircle,
-              path: '/owner/venues/new',
-              color: '#6344f5',
-              bg: '#f0ebff',
-            },
-            {
-              label: 'Manage Calendar',
-              icon: Calendar,
-              path: '/owner/calendar',
-              color: '#10b981',
-              bg: '#ecfdf5',
-            },
-            {
-              label: 'Venue Packages',
-              icon: Package,
-              path: '/owner/venues',
-              color: '#f59e0b',
-              bg: '#fffbe6',
-            },
-            {
-              label: 'Gallery Images',
-              icon: Image,
-              path: '/owner/venues',
-              color: '#3b82f6',
-              bg: '#eff6ff',
-            },
-            {
-              label: 'Pricing & Rules',
-              icon: DollarSign,
-              path: '/owner/venues',
-              color: '#ef4444',
-              bg: '#fef2f2',
-            },
-            {
-              label: 'Promotions',
-              icon: Tag,
-              path: '/owner/venues',
-              color: '#8b5cf6',
-              bg: '#f3e8ff',
-            },
-            {
-              label: 'Reports',
-              icon: BarChart3,
-              path: '/owner/dashboard',
-              color: '#06b6d4',
-              bg: '#cffaff',
-            },
-          ].map((act, idx) => {
-            const IconComponent = act.icon
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(7, 1fr)',
+            gap: 12,
+          }}
+        >
+          {quickActions.map((action) => {
+            const Icon = action.icon
+
             return (
               <Link
-                key={idx}
-                to={act.path}
+                key={action.label}
+                to={action.path}
                 style={{
                   padding: '14px 10px',
                   borderRadius: 16,
@@ -1676,16 +2007,17 @@ const OwnerDashboard = () => {
                     width: 32,
                     height: 32,
                     borderRadius: 10,
-                    background: act.bg,
-                    color: act.color,
+                    background: action.bg,
+                    color: action.color,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                   }}
                 >
-                  <IconComponent size={16} />
+                  <Icon size={16} />
                 </div>
+
                 <span
                   style={{
                     fontSize: 11,
@@ -1694,13 +2026,68 @@ const OwnerDashboard = () => {
                     lineHeight: 1.2,
                   }}
                 >
-                  {act.label}
+                  {action.label}
                 </span>
               </Link>
             )
           })}
         </div>
       </div>
+
+      {/* ========================================================
+          EMPTY VENUE INFORMATION
+      ======================================================== */}
+
+      {myVenues.length === 0 && (
+        <div
+          className="card"
+          style={{
+            padding: 24,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            border: '1px solid #e2e8f0',
+          }}
+        >
+          <Building2 size={30} color="#6344f5" />
+
+          <div
+            style={{
+              flex: 1,
+            }}
+          >
+            <div
+              style={{
+                fontWeight: 800,
+                fontSize: 14,
+              }}
+            >
+              You haven't added a venue yet
+            </div>
+
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--text-tertiary)',
+                marginTop: 3,
+              }}
+            >
+              Add your first venue to start receiving booking requests.
+            </div>
+          </div>
+
+          <Link
+            to="/owner/venues/new"
+            className="btn btn-primary btn-sm"
+            style={{
+              gap: 5,
+            }}
+          >
+            <Plus size={14} />
+            Add Venue
+          </Link>
+        </div>
+      )}
     </div>
   )
 }

@@ -108,19 +108,26 @@ const OwnerDashboard      = lazy(() => import('@features/dashboard/owner/pages/O
 const OwnerVenuesPage     = lazy(() => import('@features/dashboard/owner/pages/OwnerVenuesPage'));
 const OwnerVenueForm      = lazy(() => import('@features/dashboard/owner/pages/OwnerVenueForm'));
 const OwnerBookingsPage   = lazy(() => import('@features/dashboard/owner/pages/OwnerBookingsPage'));
+const OwnerInquiriesPage  = lazy(() => import('@features/dashboard/owner/pages/OwnerInquiriesPage'));
 const OwnerCalendarPage   = lazy(() => import('@features/dashboard/owner/pages/OwnerCalendarPage'));
 const OwnerReviewsPage    = lazy(() => import('@features/dashboard/owner/pages/OwnerReviewsPage'));
 const OwnerProfilePage    = lazy(() => import('@features/dashboard/owner/pages/OwnerProfilePage'));
+const OwnerSettingsPage   = lazy(() => import('@features/dashboard/owner/pages/OwnerSettingsPage'));
+const OwnerEarningsPage   = lazy(() => import('@features/dashboard/owner/pages/OwnerEarningsPage'));
 
 // Admin Panel
-const AdminDashboard      = lazy(() => import('@features/dashboard/admin/pages/AdminDashboard'));
-const AdminVenuesPage     = lazy(() => import('@features/dashboard/admin/pages/AdminVenuesPage'));
-const AdminBookingsPage   = lazy(() => import('@features/dashboard/admin/pages/AdminBookingsPage'));
-const AdminUsersPage      = lazy(() => import('@features/dashboard/admin/pages/AdminUsersPage'));
-const AdminOwnersPage     = lazy(() => import('@features/dashboard/admin/pages/AdminOwnersPage'));
-const AdminReviewsPage    = lazy(() => import('@features/dashboard/admin/pages/AdminReviewsPage'));
-const AdminAnalyticsPage  = lazy(() => import('@features/dashboard/admin/pages/AdminAnalyticsPage'));
-const AdminSettingsPage   = lazy(() => import('@features/dashboard/admin/pages/AdminSettingsPage'));
+const AdminDashboard          = lazy(() => import('@features/dashboard/admin/pages/AdminDashboard'));
+const AdminVenuesPage         = lazy(() => import('@features/dashboard/admin/pages/AdminVenuesPage'));
+const AdminVenueDetailPage    = lazy(() => import('@features/dashboard/admin/pages/AdminVenueDetailPage'));
+const AdminOwnersPage         = lazy(() => import('@features/dashboard/admin/pages/AdminOwnersPage'));
+const AdminOwnerDetailPage    = lazy(() => import('@features/dashboard/admin/pages/AdminOwnerDetailPage'));
+const AdminRejectedVenuesPage = lazy(() => import('@features/dashboard/admin/pages/AdminRejectedVenuesPage'));
+const AdminRejectedOwnersPage = lazy(() => import('@features/dashboard/admin/pages/AdminRejectedOwnersPage'));
+const AdminBookingsPage       = lazy(() => import('@features/dashboard/admin/pages/AdminBookingsPage'));
+const AdminUsersPage          = lazy(() => import('@features/dashboard/admin/pages/AdminUsersPage'));
+const AdminReviewsPage        = lazy(() => import('@features/dashboard/admin/pages/AdminReviewsPage'));
+const AdminAnalyticsPage      = lazy(() => import('@features/dashboard/admin/pages/AdminAnalyticsPage'));
+const AdminSettingsPage       = lazy(() => import('@features/dashboard/admin/pages/AdminSettingsPage'));
 
 // ─── Suspense Wrapper ───────────────────────────────────────────────────────
 const withSuspense = (Component) => (
@@ -216,11 +223,15 @@ const router = createBrowserRouter([
       { path: 'dashboard',         element: withSuspense(OwnerDashboard) },
       { path: 'venues',            element: withSuspense(OwnerVenuesPage) },
       { path: 'venues/new',        element: withSuspense(OwnerVenueForm) },
+      { path: 'venues/add',        element: withSuspense(OwnerVenueForm) },
       { path: 'venues/:id/edit',   element: withSuspense(OwnerVenueForm) },
       { path: 'bookings',          element: withSuspense(OwnerBookingsPage) },
+      { path: 'inquiries',         element: withSuspense(OwnerInquiriesPage) },
       { path: 'calendar',          element: withSuspense(OwnerCalendarPage) },
       { path: 'reviews',           element: withSuspense(OwnerReviewsPage) },
+      { path: 'earnings',          element: withSuspense(OwnerEarningsPage) },
       { path: 'profile',           element: withSuspense(OwnerProfilePage) },
+      { path: 'settings',          element: withSuspense(OwnerSettingsPage) },
     ],
   },
 
@@ -238,9 +249,13 @@ const router = createBrowserRouter([
       { index: true,               element: withSuspense(AdminDashboard) },
       { path: 'dashboard',         element: withSuspense(AdminDashboard) },
       { path: 'venues',            element: withSuspense(AdminVenuesPage) },
+      { path: 'venues/:id',        element: withSuspense(AdminVenueDetailPage) },
+      { path: 'owners',            element: withSuspense(AdminOwnersPage) },
+      { path: 'owners/:id',        element: withSuspense(AdminOwnerDetailPage) },
+      { path: 'rejected-venues',   element: withSuspense(AdminRejectedVenuesPage) },
+      { path: 'rejected-owners',   element: withSuspense(AdminRejectedOwnersPage) },
       { path: 'bookings',          element: withSuspense(AdminBookingsPage) },
       { path: 'users',             element: withSuspense(AdminUsersPage) },
-      { path: 'owners',            element: withSuspense(AdminOwnersPage) },
       { path: 'reviews',           element: withSuspense(AdminReviewsPage) },
       { path: 'analytics',         element: withSuspense(AdminAnalyticsPage) },
       { path: 'settings',          element: withSuspense(AdminSettingsPage) },

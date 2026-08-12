@@ -9,7 +9,7 @@ import { ChevronDown, HelpCircle } from 'lucide-react';
 
 const FAQS = [
   {
-    q: 'How do I book a banquet hall on VenueHub?',
+    q: 'How do I book a banquet hall on EventFlow?',
     a: 'Simply search for venues by city or category, view package details, choose your date on the booking calendar, select optional add-ons, and proceed to checkout.',
   },
   {
@@ -17,7 +17,7 @@ const FAQS = [
     a: 'Yes! Every venue detail page includes direct contact options and virtual site tours. You can schedule a physical site visit before finalizing your booking.',
   },
   {
-    q: 'What is VenueHub\'s cancellation policy?',
+    q: 'What is EventFlow\'s cancellation policy?',
     a: 'Venues on our platform use standardized cancellation policies (Flexible, Moderate, Strict). Cancellation refund terms are clearly specified on each venue details page.',
   },
   {
@@ -36,7 +36,7 @@ const FAQPage = () => {
           Frequently Asked Questions
         </h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: 'var(--text-base)', marginTop: 'var(--space-3)' }}>
-          Got questions? We've got answers. Everything you need to know about venue booking on VenueHub.
+          Got questions? We've got answers. Everything you need to know about venue booking on EventFlow.
         </p>
       </div>
 

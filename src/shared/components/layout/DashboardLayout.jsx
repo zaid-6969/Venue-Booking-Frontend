@@ -8,7 +8,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import {
   LayoutDashboard, CalendarCheck, Heart, Star, Bell, User,
   FileText, Building2, Calendar, Settings, Users, BarChart3,
-  LogOut, Menu, X, ChevronRight, Shield, Home, Plus, CreditCard
+  LogOut, Menu, X, ChevronRight, Shield, Home, Plus, CreditCard,
+  XCircle, UserX
 } from 'lucide-react';
 import { logoutUser } from '@features/auth/redux/authThunks';
 import { selectCurrentUser } from '@features/auth/redux/authSlice';
@@ -35,20 +36,22 @@ const NAV_CONFIG = {
     { label: 'My Venues',   path: '/owner/venues',     icon: Building2 },
     { label: 'Bookings',    path: '/owner/bookings',   icon: CalendarCheck },
     { label: 'Calendar',    path: '/owner/calendar',   icon: Calendar },
-    { label: 'Inquiries',   path: '/owner/bookings',   icon: FileText, dynamicBadge: 'inquiries' },
+    { label: 'Inquiries',   path: '/owner/inquiries',  icon: FileText, dynamicBadge: 'inquiries' },
     { label: 'Reviews',     path: '/owner/reviews',    icon: Star },
+    { label: 'Earnings',    path: '/owner/earnings',   icon: CreditCard },
     { label: 'Profile',     path: '/owner/profile',    icon: User },
-    { label: 'Settings',    path: '/owner/profile',    icon: Settings },
+    { label: 'Settings',    path: '/owner/settings',   icon: Settings },
   ],
   admin: [
-    { label: 'Dashboard',  path: '/admin/dashboard',  icon: LayoutDashboard },
-    { label: 'Venues',     path: '/admin/venues',     icon: Building2 },
-    { label: 'Bookings',   path: '/admin/bookings',   icon: CalendarCheck },
-    { label: 'Customers',  path: '/admin/users',      icon: Users },
-    { label: 'Owners',     path: '/admin/owners',     icon: Shield },
-    { label: 'Reviews',    path: '/admin/reviews',    icon: Star },
-    { label: 'Analytics',  path: '/admin/analytics',  icon: BarChart3 },
-    { label: 'Settings',   path: '/admin/settings',   icon: Settings },
+    { label: 'Dashboard',        path: '/admin/dashboard',        icon: LayoutDashboard },
+    { label: 'Venues',           path: '/admin/venues',           icon: Building2 },
+    { label: 'Venue Owners',     path: '/admin/owners',           icon: Shield },
+    { label: 'Bookings',         path: '/admin/bookings',         icon: CalendarCheck },
+    { label: 'Registered Users', path: '/admin/users',            icon: Users },
+    { label: 'Rejected Venues',  path: '/admin/rejected-venues',  icon: XCircle },
+    { label: 'Rejected Owners',  path: '/admin/rejected-owners',  icon: UserX },
+    { label: 'Analytics',        path: '/admin/analytics',        icon: BarChart3 },
+    { label: 'Settings',         path: '/admin/settings',         icon: Settings },
   ],
 };
 
@@ -90,7 +93,7 @@ const DashboardLayout = ({ role }) => {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             color: '#fff', fontWeight: 800, fontFamily: 'var(--font-display)',
             fontSize: 18,
-          }}>V</div>
+          }}>{APP_NAME.charAt(0)}</div>
           <span style={{ fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display)', fontSize: 18 }}>
             {APP_NAME} <span style={{ color: '#a78bfa', fontSize: 12 }}>✦</span>
           </span>
@@ -197,7 +200,34 @@ const DashboardLayout = ({ role }) => {
           );
         })}
 
-     
+        {/* {role === 'owner' && (
+          <div style={{
+            margin: '16px 8px 8px 8px',
+            padding: '16px',
+            borderRadius: '16px',
+            background: 'linear-gradient(135deg, #6344f5 0%, #8b5cf6 100%)',
+            color: '#ffffff',
+            boxShadow: '0 4px 14px rgba(99, 68, 245, 0.25)',
+          }}>
+            <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 4 }}>Grow Your Business</div>
+            <div style={{ fontSize: 11, opacity: 0.9, lineHeight: 1.3, marginBottom: 12 }}>
+              Complete your venue profile to get more bookings
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{
+                width: 36, height: 36, borderRadius: '50%', border: '3px solid rgba(255,255,255,0.3)',
+                borderTopColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: 10, fontWeight: 800
+              }}>75%</div>
+              <Link to="/owner/profile" style={{
+                background: '#ffffff', color: '#6344f5', padding: '6px 12px', borderRadius: 10,
+                fontSize: 11, fontWeight: 800, textDecoration: 'none', display: 'inline-block'
+              }}>
+                Complete Profile →
+              </Link>
+            </div>
+          </div>
+        )} */}
       </nav>
 
       {/* Bottom Actions */}
@@ -258,9 +288,6 @@ const DashboardLayout = ({ role }) => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          position: 'sticky',
-          top: 0,
-          zIndex: 'var(--z-sticky)',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <button

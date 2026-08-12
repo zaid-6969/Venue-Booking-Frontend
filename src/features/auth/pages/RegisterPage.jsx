@@ -57,7 +57,7 @@ const RegisterPage = () => {
       const user = result?.user || result?.data?.user;
       const role = user?.role || selectedRole;
 
-      toast.success('Registration successful! Welcome to VenueHub.');
+      toast.success('Registration successful! Welcome to EventFlow.');
       
       if (role === 'owner') {
         navigate('/owner/dashboard', { replace: true });
@@ -87,7 +87,7 @@ const RegisterPage = () => {
           Create an account
         </h2>
         <p style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 4 }}>
-          Join VenueHub to book venues or list your property
+          Join EventFlow to book venues or list your property
         </p>
       </div>
 
